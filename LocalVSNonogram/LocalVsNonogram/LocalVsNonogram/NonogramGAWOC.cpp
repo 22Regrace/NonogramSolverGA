@@ -161,11 +161,218 @@ bool GetFileInfo(NonogramData& newNonogram, std::string fileName)
 	return true;
 }
 
+// This is a struct to store a particular Nonogram solution
+struct NonogramInstance {
+	std::vector<std::vector<int>> grid;  // Solution
+	double fitness;
+};
+
+// --Initialization--
+
+// This is a function to generate a random solution for the population
+// i.e. randomly populate a matrix with 0s and 1s
+NonogramInstance GenerateSolution(int height, int width) {
+	NonogramInstance nonogram;
+	nonogram.fitness = 0.0;
+	nonogram.grid.resize(height, std::vector<int>(width, 0));
+
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			nonogram.grid[i][j] = rand() % 2; // Forces remainder to 0 or 1
+		}
+	}
+
+	return nonogram;
+}
+
+// This is a function to initialize a population of random solutions
+std::vector<NonogramInstance> InitializePopulation(int size, int height, int width) {
+	std::vector<NonogramInstance> population;
+
+	for (int i = 0; i < size; i++) {
+		population.push_back(GenerateSolution(height, width));
+	}
+
+	return population;
+}
+
+// --Fitness Assignment--
+
+// This is a function to calculate the difference between the expected
+// number of 1s and actual number of 1s for each *row*
+double CalculateF1(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& rowHints) {
+	double f1 = 0.0;
+	int height = grid.size();
+	int width = grid[0].size();
+
+	for (int i = 0; i < height; i++) {
+		// Hint gives expected 1s
+		int expectedOnes = 0;
+		for (int hint : rowHints[i]) {
+			expectedOnes += hint;
+		}
+
+		// Count actual 1s from particular solution
+		int actualOnes = 0;
+		for (int j = 0; j < grid[i].size(); j++) {
+			actualOnes += grid[i][j];
+		}
+
+		// Get difference
+		f1 += abs(expectedOnes - actualOnes);
+	}
+
+	return f1;
+}
+
+// This is a function to calculate the difference between the expected
+// number of 1s and actual number of 1s for each *column*
+double CalculateF2(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& colHints) {
+	double f2 = 0.0;
+	int height = grid.size();
+	int width = grid[0].size();
+
+	for (int i = 0; i < width; i++) {
+		// Hint gives expected 1s
+		int expectedOnes = 0;
+		for (int hint : colHints[i]) {
+			expectedOnes += hint;
+		}
+
+		// Count actual 1s from particular solution
+		int actualOnes = 0;
+		for (int j = 0; j < height; j++) {
+			actualOnes += grid[j][i];
+		}
+
+		// Get difference
+		f2 += abs(expectedOnes - actualOnes);
+	}
+
+	return f2;
+}
+
+// This is a function to calculate the difference between the expected
+// number of 0s and actual number of 0s for each *row*
+double CalculateF3(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& rowHints) {
+	double f3 = 0.0;
+	int height = grid.size();
+	int width = grid[0].size();
+
+	for (int i = 0; i < height; i++) {
+		// Hint gives expected 1s, so we can deduce 0s
+		int expectedOnes = 0;
+		for (int hint : rowHints[i]) {
+			expectedOnes += hint;
+		}
+		int expectedZeros = width - expectedOnes;
+
+		// Count actual 1s from particular solution
+		int actualOnes = 0;
+		for (int j = 0; j < grid[i].size(); j++) {
+			actualOnes += grid[i][j];
+		}
+		int actualZeros = width - actualOnes;
+
+		// Get difference
+		f3 += abs(expectedZeros - actualZeros);
+	}
+
+	return f3;
+}
+
+// This is a function to calculate the difference between the expected
+// number of 0s and actual number of 0s for each *column*
+double CalculateF4(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& colHints) {
+	double f4 = 0.0;
+	int height = grid.size();
+	int width = grid[0].size();
+
+	for (int i = 0; i < width; i++) {
+		// Hint gives expected 1s, so we can deduce 0s
+		int expectedOnes = 0;
+		for (int hint : colHints[i]) {
+			expectedOnes += hint;
+		}
+		int expectedZeros = height - expectedOnes;
+
+		// Count actual 1s from particular solution
+		int actualOnes = 0;
+		for (int j = 0; j < height; j++) {
+			actualOnes += grid[j][i];
+		}
+		int actualZeros = height - actualOnes;
+
+		// Get difference
+		f4 += abs(expectedZeros - actualZeros);
+	}
+
+	return f4;
+}
+
+// This is a function to calculate the fitness for a given nonogram solution
+// It subtracts the total error from the size of the binary matrix
+// Hence, a higher fitness indicates a stronger solution
+void CalculateFitness(NonogramInstance& nonogram, const NonogramData& data) {
+	// Getting height and width
+	int N = data.height;
+	int M = data.width;
+
+	// Calculate all four components
+	double f1 = CalculateF1(nonogram.grid, data.rowHints);
+	double f2 = CalculateF2(nonogram.grid, data.colHints);
+	double f3 = CalculateF3(nonogram.grid, data.rowHints);
+	double f4 = CalculateF4(nonogram.grid, data.colHints);
+
+	// Total error
+	double f = f1 + f2 + f3 + f4;
+
+	// Transform to maximization problem
+	nonogram.fitness = (N * M) - f;
+}
+
+// This is a function to calculate the fitness for an entire population of solutions
+void GetPopFitness(std::vector<NonogramInstance>& population, const NonogramData& data) {
+	for (int i = 0; i < population.size(); i++) {
+		CalculateFitness(population[i], data);
+	}
+}
+
+// --Selection--
+
+// This is a function to implement roulette wheel select
+int RouletteWheelSelect(const std::vector<NonogramInstance>& population) {
+	// Getting total fitness
+	double totalFitness = 0.0;
+	for (int i = 0; i < population.size(); i++) {
+		totalFitness += population[i].fitness;
+	}
+
+	// Generate random value between 0 and totalFitness
+	double randomValue = ((double)rand() / RAND_MAX) * totalFitness;
+
+	// Find the corresponding solution
+	double cumulativeFitness = 0.0;
+	for (int i = 0; i < population.size(); i++) {
+		cumulativeFitness += population[i].fitness;
+		if (cumulativeFitness >= randomValue) { // Select this individual
+			return i;
+		}
+	}
+
+	return population.size() - 1; // No individual selected
+}
+
 int main()
 {
 	// File poiting to the current nonogram data
 	std::string fileName = inputFilePath;
 
+	// Generating random seed for solution generation
+	// Process-specific value ensures uniqueness
+	unsigned long long seed = (unsigned long long)time(0) ^ _getpid();
+	srand(seed);
+	
 	// Reading in and storing the nonogram data
 	NonogramData nonogramData;
 	bool inputSuccess = GetFileInfo(nonogramData, fileName);
