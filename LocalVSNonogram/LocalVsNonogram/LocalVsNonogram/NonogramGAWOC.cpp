@@ -9,7 +9,13 @@
 
 #define GENERATION_SIZE 5
 
-const std::string inputFilePath = "../TestData/db/webpbn/1.non";
+// Comment in if you want to enable Wisdom of Crowds
+//#define WOC_ENABLED
+
+// Comment in if you want to save your results to the CSV file
+//#define SAVE_RESULTS_TO_CSV
+
+const std::string inputFilePath = "../../../TestData/db/webpbn/1.non";
 
 /// <summary>
 /// The nonogram data collected from the input file
@@ -157,6 +163,8 @@ bool GetFileInfo(NonogramData& newNonogram, std::string fileName)
 	newNonogram.goalState.resize(newNonogram.height, std::vector<int>(newNonogram.width, 0));
 	ParseGoal(newNonogram.goalState, file);
 
+	file.close();
+
 	// Making sure that the data was read in correctly and is not NULL
 	if (newNonogram.height == 0 || newNonogram.width == 0 || newNonogram.rowHints.empty() || newNonogram.colHints.empty() || newNonogram.goalState.empty())
 	{
@@ -164,6 +172,26 @@ bool GetFileInfo(NonogramData& newNonogram, std::string fileName)
 	}
 
 	return true;
+}
+
+// This is a function to print the header info to the results CSV file before any run data gets added
+void InitResultsCSV(std::ofstream& file, const std::string fileName, const int height, const int width)
+{
+	// Printing the header info for each run of the results
+#ifdef WOC_ENABLED
+	file << "WOC" << ",";
+#else
+	file << "Standard GA" << ",";
+#endif
+
+	file << height << "x" << width << ",";
+	file << fileName << "\n";
+
+	file << "Generation" << ","
+		<< "Avg fitness" << ","
+		<< "Best fitness" << ","
+		<< "Best path"
+		<< "\n";
 }
 
 // This is a struct to store a particular Nonogram solution
@@ -405,6 +433,24 @@ void ShowNonogram(const std::vector<std::vector<int>> grid, int gridHeight, int 
 	int result = system(parameter.c_str());
 }
 
+// This function updates the results CSV file to print:
+// generation #, average fitness, bestfitness, and best path in the generation
+void UpdateResultsCSV(std::ofstream& file, int gen, double avgFitness, NonogramInstance bestGrid)
+{
+	file << gen << ","
+		<< avgFitness << ","
+		<< bestGrid.fitness << ",";
+
+	for (int i = 0; i < bestGrid.grid.size(); i++)
+	{
+		for (int j = 0; j < bestGrid.grid[i].size(); j++)
+		{
+			file << bestGrid.grid[i][j];
+		}
+	}
+	file << "\n";
+}
+
 int main()
 {
 	// File poiting to the current nonogram data
@@ -424,6 +470,16 @@ int main()
 		return -1;
 	}
 
+#ifdef SAVE_RESULTS_TO_CSV
+	// Opening the results CSV file
+	std::ofstream resultsFile("NonogramSolverResults.csv", std::ios::out | std::ios::app);
+	if (!resultsFile.is_open())
+	{
+		printf_s("Error opening file to write results.\n");
+		return -1;
+	}
+	InitResultsCSV(resultsFile, fileName, nonogramData.height, nonogramData.width);
+#endif
 
 	// Rest of the code goes here
 	std::vector<NonogramInstance> Population = InitializePopulation(GENERATION_SIZE, nonogramData.height, nonogramData.width);
@@ -437,6 +493,11 @@ int main()
 	// Printing the real nonogram solution (can get rid of this later)
 	printf("\nSolution Nonogram: \n");
 	PrintNonogramState(nonogramData.goalState);
+
+#ifdef SAVE_RESULTS_TO_CSV
+	resultsFile << "\n\n";
+	resultsFile.close();
+#endif
 
 	return 0;
 }
