@@ -1,10 +1,15 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <vector>
+#include <process.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cstdlib>
+#include <string>
 
-const std::string inputFilePath = "../../../TestData/db/webpbn/1.non";
+#define GENERATION_SIZE 5
+
+const std::string inputFilePath = "../TestData/db/webpbn/1.non";
 
 /// <summary>
 /// The nonogram data collected from the input file
@@ -363,6 +368,43 @@ int RouletteWheelSelect(const std::vector<NonogramInstance>& population) {
 	return population.size() - 1; // No individual selected
 }
 
+/// <summary>
+/// This function converts the grid to a bitstream to be used by the python program as a parameter
+/// </summary>
+/// <param name="state"></param>
+/// <returns></returns>
+std::string GridToBitStream(std::vector<std::vector<int>> state)
+{
+	std::string bitStream = "";
+
+	for (int i = 0; i < state.size(); i++)
+	{
+		for (int j = 0; j < state[i].size(); j++)
+		{
+			bitStream.append(std::to_string(state[i][j]));
+
+		}
+	}
+	return bitStream;
+}
+
+/// <summary>
+/// This function takes in the grid and the height and width of the grid and calls the python GUI to show the nonogram
+/// </summary>
+/// <param name="grid"></param>
+/// <param name="gridHeight"></param>
+/// <param name="gridWidth"></param>
+void ShowNonogram(const std::vector<std::vector<int>> grid, int gridHeight, int gridWidth)
+{
+	//Create a bitstream from grid to be passed as a parameter
+	std::string bitStreamResult = GridToBitStream(grid);
+
+	//Convert it to a parameter that can be used
+	std::string parameter = "python ./NonogramGUI.py " + std::to_string(gridHeight) + " "
+		+ std::to_string(gridWidth) + " " + bitStreamResult;
+	int result = system(parameter.c_str());
+}
+
 int main()
 {
 	// File poiting to the current nonogram data
@@ -384,10 +426,18 @@ int main()
 
 
 	// Rest of the code goes here
+	std::vector<NonogramInstance> Population = InitializePopulation(GENERATION_SIZE, nonogramData.height, nonogramData.width);
+	GetPopFitness(Population, nonogramData);
 
+	for (int i = 0; i < GENERATION_SIZE; i++) 
+	{
+		ShowNonogram(Population[i].grid, nonogramData.height, nonogramData.width);
+	}
 
 	// Printing the real nonogram solution (can get rid of this later)
+	printf("\nSolution Nonogram: \n");
 	PrintNonogramState(nonogramData.goalState);
 
 	return 0;
 }
+
