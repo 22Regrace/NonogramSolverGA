@@ -1,4 +1,4 @@
-﻿#include <stdio.h>
+#include <stdio.h>
 #include <vector>
 #include <process.h>
 #include <iostream>
@@ -6,14 +6,20 @@
 #include <sstream>
 #include <cstdlib>
 #include <string>
-
-#define GENERATION_SIZE 5
+#include <random>
 
 // Comment in if you want to enable Wisdom of Crowds
 //#define WOC_ENABLED
 
 // Comment in if you want to save your results to the CSV file
-//#define SAVE_RESULTS_TO_CSV
+#define SAVE_RESULTS_TO_CSV
+
+#define GENERATIONS 100
+#define POPULATION_SIZE 50
+#define ELITES 2
+#define MUTATION_RATE 0.1
+
+#define PRINT_INTERVAL 50
 
 const std::string inputFilePath = "../../../TestData/db/webpbn/1.non";
 
@@ -451,6 +457,72 @@ void UpdateResultsCSV(std::ofstream& file, int gen, double avgFitness, NonogramI
 	file << "\n";
 }
 
+void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumber) {
+	float avgFitness = 0.0;
+	float bestFitness = 0.0;
+	for (const NonogramInstance& instance : pop) {
+		avgFitness += instance.fitness;
+		if (bestFitness == 0 || bestFitness < instance.fitness) {
+			bestFitness = instance.fitness;
+		}
+	}
+	avgFitness /= pop.size();
+	std::cout << "Gen " << genNumber + 1 << ": best = " << bestFitness
+		<< " avg = " << avgFitness << std::endl;
+}
+
+NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPop, int generations, 
+	int popSize, int elitismAmount, float mutationRate) {
+
+	std::vector<NonogramInstance> pop = initialPop;
+	std::vector<NonogramInstance> newPop = pop;
+
+	for (int gen = 0; gen < generations; gen++) {
+		
+		//ELITISM
+		//Sort the population so that the best individuals can be found easily
+		std::vector<NonogramInstance> sortedPop = pop;
+		std::sort(sortedPop.begin(), sortedPop.end(), [](const NonogramInstance& a, const NonogramInstance& b) { 
+			return a.fitness < b.fitness; 
+		});
+		// Push the top n elites into newPop
+		for (int i = 0; i < elitismAmount && i < sortedPop.size(); i++) {
+			newPop.push_back(sortedPop[i]);
+		}
+
+		//WOC
+
+		for (int i = elitismAmount; i < pop.size(); i++) {
+			//SELECT PARENTS
+			NonogramInstance parent1 = pop[RouletteWheelSelect(pop)];
+			NonogramInstance parent2 = pop[RouletteWheelSelect(pop)];
+
+			//Use the specified crossover algorithm, OX or CX
+			NonogramInstance child = { {} };
+			
+			//CROSSOVER
+
+			//Then attempt to apply a mutation to the child and add it to the population
+			//MUTATE
+
+			newPop.push_back(child);
+
+		}
+
+		if ((gen + 1) % PRINT_INTERVAL == 0) {
+			PrintPopulationStats(pop, gen);
+		}
+		
+	}
+	//Get best individual
+	NonogramInstance bestInstance = { {} };
+	for (NonogramInstance& ind : pop) {
+		if (bestInstance.fitness == 0 || bestInstance.fitness < ind.fitness)
+			bestInstance = ind;
+	}
+	return bestInstance;
+}
+
 int main()
 {
 	// File poiting to the current nonogram data
@@ -460,7 +532,7 @@ int main()
 	// Process-specific value ensures uniqueness
 	unsigned long long seed = (unsigned long long)time(0) ^ _getpid();
 	srand(seed);
-	
+
 	// Reading in and storing the nonogram data
 	NonogramData nonogramData;
 	bool inputSuccess = GetFileInfo(nonogramData, fileName);
@@ -480,24 +552,26 @@ int main()
 	}
 	InitResultsCSV(resultsFile, fileName, nonogramData.height, nonogramData.width);
 #endif
-
+	
 	// Rest of the code goes here
-	std::vector<NonogramInstance> Population = InitializePopulation(GENERATION_SIZE, nonogramData.height, nonogramData.width);
+	std::vector<NonogramInstance> Population = InitializePopulation(POPULATION_SIZE, nonogramData.height, nonogramData.width);
 	GetPopFitness(Population, nonogramData);
 
-	for (int i = 0; i < GENERATION_SIZE; i++) 
-	{
-		ShowNonogram(Population[i].grid, nonogramData.height, nonogramData.width);
-	}
+	NonogramInstance solution = NonogramSolverGA(Population, GENERATIONS, POPULATION_SIZE, ELITES, MUTATION_RATE);
+
+	std::cout << "\nThe fitness of the final solution was " << solution.fitness << ".\n";
 
 	// Printing the real nonogram solution (can get rid of this later)
-	printf("\nSolution Nonogram: \n");
+	printf("\nNonogram Goal State: \n");
 	PrintNonogramState(nonogramData.goalState);
 
 #ifdef SAVE_RESULTS_TO_CSV
 	resultsFile << "\n\n";
 	resultsFile.close();
 #endif
+
+	//Needs to be last to execute since anything below will not run until the python window is closed
+	ShowNonogram(solution.grid, nonogramData.height, nonogramData.width);
 
 	return 0;
 }
