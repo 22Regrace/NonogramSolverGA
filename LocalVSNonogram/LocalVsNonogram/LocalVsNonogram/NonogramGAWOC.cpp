@@ -14,10 +14,11 @@
 // Comment in if you want to save your results to the CSV file
 #define SAVE_RESULTS_TO_CSV
 
-#define GENERATIONS 100
-#define POPULATION_SIZE 50
+#define GENERATIONS 2000
+#define POPULATION_SIZE 250
 #define ELITES 2
-#define MUTATION_RATE 0.1
+#define MIN_MUTATION_RATE 0.01
+#define MAX_MUTATION_RATE 0.01
 
 #define PRINT_INTERVAL 50
 
@@ -457,6 +458,7 @@ void UpdateResultsCSV(std::ofstream& file, int gen, double avgFitness, NonogramI
 	file << "\n";
 }
 
+//Prints the best and average fitness of a population of Nonogram Instances
 void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumber) {
 	float avgFitness = 0.0;
 	float bestFitness = 0.0;
@@ -471,50 +473,92 @@ void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumbe
 		<< " avg = " << avgFitness << std::endl;
 }
 
-NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPop, int generations, 
-	int popSize, int elitismAmount, float mutationRate) {
+//Crosses over two nonograms by selecting rows from one parent or the other to construct the child
+NonogramInstance RowCrossover(const NonogramInstance& parent1, const NonogramInstance& parent2) {
+	//Create a child of the same size as the parents
+	NonogramInstance child;
+	int height = parent1.grid.size();
+	int width = parent1.grid[0].size();
+	child.grid.resize(height, std::vector<int>(width));
+
+	//Randomly select parent 1 or parent 2 and assign each row to that parent's row
+	for (int i = 0; i < height; i++) {
+		if (rand() % 2 == 0)
+			child.grid[i] = parent1.grid[i];
+		else
+			child.grid[i] = parent2.grid[i];
+	}
+	return child;
+}
+
+//Mutates an input Nonogram Instance by randomly flipping a value from 0 to 1 or vice versa
+void TryFlipMutation(NonogramInstance& instance, double mutationRate) {
+	int height = instance.grid.size();
+	int width = instance.grid[0].size();
+
+	// Only perform mutation with given probability
+	if (((double)rand() / RAND_MAX) < mutationRate) {
+		// Pick a random cell
+		int i = rand() % height;
+		int j = rand() % width;
+
+		//Flips the value in that cell
+		instance.grid[i][j] = 1 - instance.grid[i][j];
+	}
+}
+
+NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPop, const NonogramData& data) {
 
 	std::vector<NonogramInstance> pop = initialPop;
-	std::vector<NonogramInstance> newPop = pop;
+	std::vector<NonogramInstance> newPop = {};
+	float curMutationRate = MIN_MUTATION_RATE;
 
-	for (int gen = 0; gen < generations; gen++) {
+	for (int gen = 0; gen < GENERATIONS; gen++) {
+
+		newPop = {};
 		
 		//ELITISM
 		//Sort the population so that the best individuals can be found easily
 		std::vector<NonogramInstance> sortedPop = pop;
 		std::sort(sortedPop.begin(), sortedPop.end(), [](const NonogramInstance& a, const NonogramInstance& b) { 
-			return a.fitness < b.fitness; 
+			return a.fitness > b.fitness; 
 		});
 		// Push the top n elites into newPop
-		for (int i = 0; i < elitismAmount && i < sortedPop.size(); i++) {
+		for (int i = 0; i < ELITES && i < sortedPop.size(); i++) {
 			newPop.push_back(sortedPop[i]);
 		}
 
+#ifdef WOC_ENABLED
 		//WOC
-
-		for (int i = elitismAmount; i < pop.size(); i++) {
-			//SELECT PARENTS
+#endif
+		for (int i = ELITES; i < pop.size(); i++) {
+			//Select the two parents using a roulette wheel method 
 			NonogramInstance parent1 = pop[RouletteWheelSelect(pop)];
 			NonogramInstance parent2 = pop[RouletteWheelSelect(pop)];
 
-			//Use the specified crossover algorithm, OX or CX
+			//Then create a child by crossing over the parents
 			NonogramInstance child = { {} };
-			
-			//CROSSOVER
+			child = RowCrossover(parent1, parent2);
 
 			//Then attempt to apply a mutation to the child and add it to the population
-			//MUTATE
+			TryFlipMutation(child, curMutationRate);
 
 			newPop.push_back(child);
-
 		}
+		//Set the new population and set each of its instance's fitness
+		pop = newPop;
+		GetPopFitness(pop, data);
 
 		if ((gen + 1) % PRINT_INTERVAL == 0) {
 			PrintPopulationStats(pop, gen);
 		}
+
+		//Increase the mutation rate based on the amount of generations passed, or cap it at the max. rate
+		curMutationRate = MIN_MUTATION_RATE + (MAX_MUTATION_RATE - MIN_MUTATION_RATE) * (gen / (float)GENERATIONS);
+
 		
 	}
-	//Get best individual
+	//Get the best individual in the final population to return it
 	NonogramInstance bestInstance = { {} };
 	for (NonogramInstance& ind : pop) {
 		if (bestInstance.fitness == 0 || bestInstance.fitness < ind.fitness)
@@ -557,7 +601,7 @@ int main()
 	std::vector<NonogramInstance> Population = InitializePopulation(POPULATION_SIZE, nonogramData.height, nonogramData.width);
 	GetPopFitness(Population, nonogramData);
 
-	NonogramInstance solution = NonogramSolverGA(Population, GENERATIONS, POPULATION_SIZE, ELITES, MUTATION_RATE);
+	NonogramInstance solution = NonogramSolverGA(Population, nonogramData);
 
 	std::cout << "\nThe fitness of the final solution was " << solution.fitness << ".\n";
 
