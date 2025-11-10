@@ -5,6 +5,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <cmath>
+#include <algorithm>
 #include <string>
 #include <random>
 
@@ -238,116 +240,96 @@ std::vector<NonogramInstance> InitializePopulation(int size, int height, int wid
 
 // --Fitness Assignment--
 
-// This is a function to calculate the difference between the expected
-// number of 1s and actual number of 1s for each *row*
+// This is a function that looks for blocks of 1s from a row or column (since we need to account for continuity) 
+// It returns a vector containing the continuous groups from the row or column so that it can be compared to the actual solution
+std::vector<int> GetBlocks(const std::vector<int>& line) {
+    std::vector<int> blocks;
+    int currentBlock = 0;
+    
+    for (int i = 0; i < line.size(); i++) {
+        if (line[i] == 1) {
+            currentBlock++;
+        } else { // 0 found
+            if (currentBlock > 0) {
+                blocks.push_back(currentBlock); // Storing previous block size
+                currentBlock = 0;
+            }
+        }
+    }
+    
+    // Handling case where last block is 1
+    if (currentBlock > 0) {
+        blocks.push_back(currentBlock);
+    }
+    
+    return blocks;
+}
+
+// This is a function that calculates the difference between expected and actual blocks for ROWS (do not need separate functions for 1s and 0s anymore)
 double CalculateF1(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& rowHints) {
-	double f1 = 0.0;
-	int height = grid.size();
-	int width = grid[0].size();
+    double f1 = 0.0;
+    int height = grid.size();
+    
+    for (int i = 0; i < height; i++) {
+        // Get expected blocks from hints
+        std::vector<int> expectedBlocks = rowHints[i];
+        
+        // Get actual blocks from particular solution
+        std::vector<int> actualBlocks = GetBlocks(grid[i]);
+        
+        // Calculate difference between expected and actual blocks
+        int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
+        for (int j = 0; j < maxBlocks; j++) {
+            int expected = 0;
+			if (j < expectedBlocks.size()) {
+			    expected = expectedBlocks[j];
+			}
 
-	for (int i = 0; i < height; i++) {
-		// Hint gives expected 1s
-		int expectedOnes = 0;
-		for (int hint : rowHints[i]) {
-			expectedOnes += hint;
-		}
-
-		// Count actual 1s from particular solution
-		int actualOnes = 0;
-		for (int j = 0; j < grid[i].size(); j++) {
-			actualOnes += grid[i][j];
-		}
-
-		// Get difference
-		f1 += abs(expectedOnes - actualOnes);
-	}
-
-	return f1;
+			int actual = 0;
+			if (j < actualBlocks.size()) {
+			    actual = actualBlocks[j];
+			}
+            f1 += abs(expected - actual);
+        }
+    }
+    return f1;
 }
 
-// This is a function to calculate the difference between the expected
-// number of 1s and actual number of 1s for each *column*
+// This is a function that calculates the difference between expected and actual blocks for COLUMNS
 double CalculateF2(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& colHints) {
-	double f2 = 0.0;
-	int height = grid.size();
-	int width = grid[0].size();
+    double f2 = 0.0;
+    int height = grid.size();
+    int width = grid[0].size();
+    
+    for (int k = 0; k < width; k++) {
+        // Extract the column into a vector
+        std::vector<int> column;
+        for (int i = 0; i < height; i++) {
+            column.push_back(grid[i][k]);
+        }
+        
+        // Get expected blocks from hints
+        std::vector<int> expectedBlocks = colHints[k];
+        
+        // Get actual blocks from current solution
+        std::vector<int> actualBlocks = GetBlocks(column);
+        
+        // Calculate difference
+        int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
+        for (int j = 0; j < maxBlocks; j++) {
+            int expected = 0;
+			if (j < expectedBlocks.size()) {
+			    expected = expectedBlocks[j];
+			}
 
-	for (int i = 0; i < width; i++) {
-		// Hint gives expected 1s
-		int expectedOnes = 0;
-		for (int hint : colHints[i]) {
-			expectedOnes += hint;
-		}
-
-		// Count actual 1s from particular solution
-		int actualOnes = 0;
-		for (int j = 0; j < height; j++) {
-			actualOnes += grid[j][i];
-		}
-
-		// Get difference
-		f2 += abs(expectedOnes - actualOnes);
-	}
-
-	return f2;
-}
-
-// This is a function to calculate the difference between the expected
-// number of 0s and actual number of 0s for each *row*
-double CalculateF3(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& rowHints) {
-	double f3 = 0.0;
-	int height = grid.size();
-	int width = grid[0].size();
-
-	for (int i = 0; i < height; i++) {
-		// Hint gives expected 1s, so we can deduce 0s
-		int expectedOnes = 0;
-		for (int hint : rowHints[i]) {
-			expectedOnes += hint;
-		}
-		int expectedZeros = width - expectedOnes;
-
-		// Count actual 1s from particular solution
-		int actualOnes = 0;
-		for (int j = 0; j < grid[i].size(); j++) {
-			actualOnes += grid[i][j];
-		}
-		int actualZeros = width - actualOnes;
-
-		// Get difference
-		f3 += abs(expectedZeros - actualZeros);
-	}
-
-	return f3;
-}
-
-// This is a function to calculate the difference between the expected
-// number of 0s and actual number of 0s for each *column*
-double CalculateF4(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& colHints) {
-	double f4 = 0.0;
-	int height = grid.size();
-	int width = grid[0].size();
-
-	for (int i = 0; i < width; i++) {
-		// Hint gives expected 1s, so we can deduce 0s
-		int expectedOnes = 0;
-		for (int hint : colHints[i]) {
-			expectedOnes += hint;
-		}
-		int expectedZeros = height - expectedOnes;
-
-		// Count actual 1s from particular solution
-		int actualOnes = 0;
-		for (int j = 0; j < height; j++) {
-			actualOnes += grid[j][i];
-		}
-		int actualZeros = height - actualOnes;
-
-		// Get difference
-		f4 += abs(expectedZeros - actualZeros);
-	}
-
-	return f4;
+			int actual = 0;
+			if (j < actualBlocks.size()) {
+			    actual = actualBlocks[j];
+			}
+            f2 += abs(expected - actual);
+        }
+    }
+    return f2;
 }
 
 // This is a function to calculate the fitness for a given nonogram solution
@@ -358,17 +340,16 @@ void CalculateFitness(NonogramInstance& nonogram, const NonogramData& data) {
 	int N = data.height;
 	int M = data.width;
 
-	// Calculate all four components
+	// Calculate both components
 	double f1 = CalculateF1(nonogram.grid, data.rowHints);
 	double f2 = CalculateF2(nonogram.grid, data.colHints);
-	double f3 = CalculateF3(nonogram.grid, data.rowHints);
-	double f4 = CalculateF4(nonogram.grid, data.colHints);
 
 	// Total error
-	double f = f1 + f2 + f3 + f4;
+	double f = f1 + f2;
 
 	// Transform to maximization problem
-	nonogram.fitness = (N * M) - f;
+	// Added coefficient of 2 to increase range
+	nonogram.fitness = (2 * N * M) - f;
 }
 
 // This is a function to calculate the fitness for an entire population of solutions
