@@ -3,7 +3,7 @@ import sys
 
 CELL_SIZE = 30
 
-def DisplayNonogram(gridHeight, gridWidth, inputStream):
+def DisplayNonogram(gridHeight, gridWidth, inputStream, title):
     rows = int(gridHeight)
     cols = int(gridWidth)
 
@@ -15,7 +15,7 @@ def DisplayNonogram(gridHeight, gridWidth, inputStream):
         grid.append(newRow)
     
     root = tk.Tk()
-    root.title("Nonogram Display")
+    root.title(title)
 
     canvas = tk.Canvas(root, width=cols * CELL_SIZE, height=rows * CELL_SIZE)
     canvas.pack()
@@ -41,10 +41,10 @@ def DisplayNonogram(gridHeight, gridWidth, inputStream):
 
 
 def main():
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         print("Not enough parameters")
     else:
-        DisplayNonogram(sys.argv[1], sys.argv[2], sys.argv[3])
+        DisplayNonogram(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
 
 
 if __name__ == "__main__":

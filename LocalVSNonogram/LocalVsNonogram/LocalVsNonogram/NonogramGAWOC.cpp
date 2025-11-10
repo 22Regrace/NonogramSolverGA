@@ -11,20 +11,20 @@
 #include <random>
 
 // Comment in if you want to enable Wisdom of Crowds
-//#define WOC_ENABLED
+#define WOC_ENABLED
 
 // Comment in if you want to save your results to the CSV file
 #define SAVE_RESULTS_TO_CSV
 
 #define GENERATIONS 2000
 #define POPULATION_SIZE 250
-#define ELITES 2
+#define ELITES 15
 #define MIN_MUTATION_RATE 0.01
 #define MAX_MUTATION_RATE 0.01
 
-#define PRINT_INTERVAL 50
+#define PRINT_INTERVAL 500 //50
 
-const std::string inputFilePath = "../../../TestData/db/webpbn/1.non";
+const std::string inputFilePath = "../TestData/db/webpbn/1.non";
 
 /// <summary>
 /// The nonogram data collected from the input file
@@ -410,14 +410,14 @@ std::string GridToBitStream(std::vector<std::vector<int>> state)
 /// <param name="grid"></param>
 /// <param name="gridHeight"></param>
 /// <param name="gridWidth"></param>
-void ShowNonogram(const std::vector<std::vector<int>> grid, int gridHeight, int gridWidth)
+void ShowNonogram(const std::vector<std::vector<int>> grid, int gridHeight, int gridWidth, std::string title)
 {
 	//Create a bitstream from grid to be passed as a parameter
 	std::string bitStreamResult = GridToBitStream(grid);
 
 	//Convert it to a parameter that can be used
-	std::string parameter = "python ./NonogramGUI.py " + std::to_string(gridHeight) + " "
-		+ std::to_string(gridWidth) + " " + bitStreamResult;
+	std::string parameter = "start /B python ./NonogramGUI.py " + std::to_string(gridHeight) + " "
+		+ std::to_string(gridWidth) + " " + bitStreamResult + " " + title;
 	int result = system(parameter.c_str());
 }
 
@@ -497,20 +497,62 @@ NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPo
 	for (int gen = 0; gen < GENERATIONS; gen++) {
 
 		newPop = {};
-		
+
 		//ELITISM
 		//Sort the population so that the best individuals can be found easily
 		std::vector<NonogramInstance> sortedPop = pop;
-		std::sort(sortedPop.begin(), sortedPop.end(), [](const NonogramInstance& a, const NonogramInstance& b) { 
-			return a.fitness > b.fitness; 
-		});
+		std::sort(sortedPop.begin(), sortedPop.end(), [](const NonogramInstance& a, const NonogramInstance& b) {
+			return a.fitness > b.fitness;
+			});
 		// Push the top n elites into newPop
 		for (int i = 0; i < ELITES && i < sortedPop.size(); i++) {
 			newPop.push_back(sortedPop[i]);
 		}
 
 #ifdef WOC_ENABLED
-		//WOC
+		//For wisdom of crowds we are going to combine the grid at every point and opt for filled/not depending on majority of experts
+		NonogramInstance WOC_ELITE = { {} };
+		WOC_ELITE.fitness = 0.0;
+		WOC_ELITE.grid.resize(newPop[0].grid.size(), std::vector<int>(newPop[0].grid[0].size(), 0));
+
+		//Go through each of the elites grids 
+		for (int i = 0; i < newPop[0].grid.size(); i++) {
+			for (int j = 0; j < newPop[0].grid[i].size(); j++) {
+
+				int ExpertsFilledSquare = 0;
+				int ExpertsNotFilledSquare = 0;
+				for (int k = 0; k < newPop.size(); k++) {
+
+					if (newPop[k].grid[i][j] == 1) {
+						ExpertsFilledSquare += 1;
+					}
+					else {
+						ExpertsNotFilledSquare += 1;
+					}
+				}
+				//Fill in the WOC with the majority opinion of the experts
+				if (ExpertsFilledSquare >= ExpertsNotFilledSquare) {
+					WOC_ELITE.grid[i][j] = 1;
+				}
+				else {
+					WOC_ELITE.grid[i][j] = 0;
+				}
+
+			}
+		}
+		//Only show the GUI for nonogram at the end 
+		if ((gen + 1) % GENERATIONS == 0) {
+			ShowNonogram(WOC_ELITE.grid, WOC_ELITE.grid.size(), WOC_ELITE.grid[0].size(), "WOC");
+		}
+
+		if ((gen + 1) % PRINT_INTERVAL == 0) {
+			CalculateFitness(WOC_ELITE, data);
+			printf("Fitness of WOC: %f\n", WOC_ELITE.fitness);
+		}
+
+		//Add WOC to the ELITES to spawn the next kids
+		newPop.push_back(WOC_ELITE);
+
 #endif
 		for (int i = ELITES; i < pop.size(); i++) {
 			//Select the two parents using a roulette wheel method 
@@ -589,6 +631,7 @@ int main()
 	// Printing the real nonogram solution (can get rid of this later)
 	printf("\nNonogram Goal State: \n");
 	PrintNonogramState(nonogramData.goalState);
+	ShowNonogram(nonogramData.goalState, nonogramData.height, nonogramData.width, "Optimal Solution");
 
 #ifdef SAVE_RESULTS_TO_CSV
 	resultsFile << "\n\n";
@@ -596,7 +639,7 @@ int main()
 #endif
 
 	//Needs to be last to execute since anything below will not run until the python window is closed
-	ShowNonogram(solution.grid, nonogramData.height, nonogramData.width);
+	ShowNonogram(solution.grid, nonogramData.height, nonogramData.width, "Best Solution");
 
 	return 0;
 }
