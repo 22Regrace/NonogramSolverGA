@@ -11,10 +11,10 @@
 #include <random>
 
 // Comment in if you want to enable Wisdom of Crowds
-//#define WOC_ENABLED
+#define WOC_ENABLED
 
 // Comment in if you want to save your results to the CSV file
-//#define SAVE_RESULTS_TO_CSV
+#define SAVE_RESULTS_TO_CSV
 
 #define GENERATIONS 1000
 #define POPULATION_SIZE 250
@@ -22,9 +22,9 @@
 #define MIN_MUTATION_RATE 0.01
 #define MAX_MUTATION_RATE 0.05
 
-#define PRINT_INTERVAL 500 //50
+#define PRINT_INTERVAL 100 //50
 
-const std::string inputFilePath = "TestData/5x5Puzzle.non";
+const std::string inputFilePath = "TestData/5x10Puzzle.non";
 
 /// <summary>
 /// The nonogram data collected from the input file
@@ -198,8 +198,7 @@ void InitResultsCSV(std::ofstream& file, const std::string fileName, const int h
 
 	file << "Generation" << ","
 		<< "Avg fitness" << ","
-		<< "Best fitness" << ","
-		<< "Best path"
+		<< "Best fitness"
 		<< "\n";
 }
 
@@ -423,24 +422,17 @@ void ShowNonogram(const std::vector<std::vector<int>> grid, int gridHeight, int 
 
 // This function updates the results CSV file to print:
 // generation #, average fitness, bestfitness, and best path in the generation
-void UpdateResultsCSV(std::ofstream& file, int gen, double avgFitness, NonogramInstance bestGrid)
+void UpdateResultsCSV(std::ofstream& file, int gen, double avgFitness, double bestFitness)
 {
 	file << gen << ","
 		<< avgFitness << ","
-		<< bestGrid.fitness << ",";
+		<< bestFitness << ",";
 
-	for (int i = 0; i < bestGrid.grid.size(); i++)
-	{
-		for (int j = 0; j < bestGrid.grid[i].size(); j++)
-		{
-			file << bestGrid.grid[i][j];
-		}
-	}
 	file << "\n";
 }
 
 //Prints the best and average fitness of a population of Nonogram Instances
-void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumber) {
+void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumber, const std::ofstream& resultsFile) {
 	float avgFitness = 0.0;
 	float bestFitness = 0.0;
 	for (const NonogramInstance& instance : pop) {
@@ -452,6 +444,8 @@ void PrintPopulationStats(const std::vector<NonogramInstance>& pop, int genNumbe
 	avgFitness /= pop.size();
 	std::cout << "Gen " << genNumber + 1 << ": best = " << bestFitness
 		<< " avg = " << avgFitness << std::endl;
+
+	UpdateResultsCSV((std::ofstream&)resultsFile, genNumber + 1, avgFitness, bestFitness);
 }
 
 //Crosses over two nonograms by selecting rows from one parent or the other to construct the child
@@ -488,7 +482,7 @@ void TryFlipMutation(NonogramInstance& instance, double mutationRate) {
 	}
 }
 
-NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPop, const NonogramData& data) {
+NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPop, const NonogramData& data, const std::ofstream& resultsFile) {
 
 	std::vector<NonogramInstance> pop = initialPop;
 	std::vector<NonogramInstance> newPop = {};
@@ -573,7 +567,7 @@ NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPo
 		GetPopFitness(pop, data);
 
 		if ((gen + 1) % PRINT_INTERVAL == 0) {
-			PrintPopulationStats(pop, gen);
+			PrintPopulationStats(pop, gen, resultsFile);
 		}
 
 		//Increase the mutation rate based on the amount of generations passed, or cap it at the max. rate
@@ -624,7 +618,7 @@ int main()
 	std::vector<NonogramInstance> Population = InitializePopulation(POPULATION_SIZE, nonogramData.height, nonogramData.width);
 	GetPopFitness(Population, nonogramData);
 
-	NonogramInstance solution = NonogramSolverGA(Population, nonogramData);
+	NonogramInstance solution = NonogramSolverGA(Population, nonogramData, resultsFile);
 
 	std::cout << "\nThe fitness of the final solution was " << solution.fitness << ".\n";
 
