@@ -11,20 +11,20 @@
 #include <random>
 
 // Comment in if you want to enable Wisdom of Crowds
-#define WOC_ENABLED
+//#define WOC_ENABLED
 
 // Comment in if you want to save your results to the CSV file
-#define SAVE_RESULTS_TO_CSV
+//#define SAVE_RESULTS_TO_CSV
 
-#define GENERATIONS 2000
+#define GENERATIONS 1000
 #define POPULATION_SIZE 250
 #define ELITES 15
 #define MIN_MUTATION_RATE 0.01
-#define MAX_MUTATION_RATE 0.01
+#define MAX_MUTATION_RATE 0.05
 
 #define PRINT_INTERVAL 500 //50
 
-const std::string inputFilePath = "../TestData/db/webpbn/1.non";
+const std::string inputFilePath = "TestData/5x5Puzzle.non";
 
 /// <summary>
 /// The nonogram data collected from the input file
@@ -150,8 +150,8 @@ bool GetFileInfo(NonogramData& newNonogram, std::string fileName)
 
 	std::string line;
 
-	// Skipping the copyright part of the header
-	SkipFileLines(file, 5);
+	// Skipping the header
+	SkipFileLines(file, 1);
 
 	// Getting the width of the nonogram
 	size_t space;
