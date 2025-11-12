@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <string>
 #include <random>
+#include <chrono>
 
 // Comment in if you want to enable Wisdom of Crowds
 #define WOC_ENABLED
@@ -242,93 +243,94 @@ std::vector<NonogramInstance> InitializePopulation(int size, int height, int wid
 // This is a function that looks for blocks of 1s from a row or column (since we need to account for continuity) 
 // It returns a vector containing the continuous groups from the row or column so that it can be compared to the actual solution
 std::vector<int> GetBlocks(const std::vector<int>& line) {
-    std::vector<int> blocks;
-    int currentBlock = 0;
-    
-    for (int i = 0; i < line.size(); i++) {
-        if (line[i] == 1) {
-            currentBlock++;
-        } else { // 0 found
-            if (currentBlock > 0) {
-                blocks.push_back(currentBlock); // Storing previous block size
-                currentBlock = 0;
-            }
-        }
-    }
-    
-    // Handling case where last block is 1
-    if (currentBlock > 0) {
-        blocks.push_back(currentBlock);
-    }
-    
-    return blocks;
+	std::vector<int> blocks;
+	int currentBlock = 0;
+
+	for (int i = 0; i < line.size(); i++) {
+		if (line[i] == 1) {
+			currentBlock++;
+		}
+		else { // 0 found
+			if (currentBlock > 0) {
+				blocks.push_back(currentBlock); // Storing previous block size
+				currentBlock = 0;
+			}
+		}
+	}
+
+	// Handling case where last block is 1
+	if (currentBlock > 0) {
+		blocks.push_back(currentBlock);
+	}
+
+	return blocks;
 }
 
 // This is a function that calculates the difference between expected and actual blocks for ROWS (do not need separate functions for 1s and 0s anymore)
 double CalculateF1(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& rowHints) {
-    double f1 = 0.0;
-    int height = grid.size();
-    
-    for (int i = 0; i < height; i++) {
-        // Get expected blocks from hints
-        std::vector<int> expectedBlocks = rowHints[i];
-        
-        // Get actual blocks from particular solution
-        std::vector<int> actualBlocks = GetBlocks(grid[i]);
-        
-        // Calculate difference between expected and actual blocks
-        int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
-        for (int j = 0; j < maxBlocks; j++) {
-            int expected = 0;
+	double f1 = 0.0;
+	int height = grid.size();
+
+	for (int i = 0; i < height; i++) {
+		// Get expected blocks from hints
+		std::vector<int> expectedBlocks = rowHints[i];
+
+		// Get actual blocks from particular solution
+		std::vector<int> actualBlocks = GetBlocks(grid[i]);
+
+		// Calculate difference between expected and actual blocks
+		int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
+		for (int j = 0; j < maxBlocks; j++) {
+			int expected = 0;
 			if (j < expectedBlocks.size()) {
-			    expected = expectedBlocks[j];
+				expected = expectedBlocks[j];
 			}
 
 			int actual = 0;
 			if (j < actualBlocks.size()) {
-			    actual = actualBlocks[j];
+				actual = actualBlocks[j];
 			}
-            f1 += abs(expected - actual);
-        }
-    }
-    return f1;
+			f1 += abs(expected - actual);
+		}
+	}
+	return f1;
 }
 
 // This is a function that calculates the difference between expected and actual blocks for COLUMNS
 double CalculateF2(const std::vector<std::vector<int>>& grid, const std::vector<std::vector<int>>& colHints) {
-    double f2 = 0.0;
-    int height = grid.size();
-    int width = grid[0].size();
-    
-    for (int k = 0; k < width; k++) {
-        // Extract the column into a vector
-        std::vector<int> column;
-        for (int i = 0; i < height; i++) {
-            column.push_back(grid[i][k]);
-        }
-        
-        // Get expected blocks from hints
-        std::vector<int> expectedBlocks = colHints[k];
-        
-        // Get actual blocks from current solution
-        std::vector<int> actualBlocks = GetBlocks(column);
-        
-        // Calculate difference
-        int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
-        for (int j = 0; j < maxBlocks; j++) {
-            int expected = 0;
+	double f2 = 0.0;
+	int height = grid.size();
+	int width = grid[0].size();
+
+	for (int k = 0; k < width; k++) {
+		// Extract the column into a vector
+		std::vector<int> column;
+		for (int i = 0; i < height; i++) {
+			column.push_back(grid[i][k]);
+		}
+
+		// Get expected blocks from hints
+		std::vector<int> expectedBlocks = colHints[k];
+
+		// Get actual blocks from current solution
+		std::vector<int> actualBlocks = GetBlocks(column);
+
+		// Calculate difference
+		int maxBlocks = std::max(expectedBlocks.size(), actualBlocks.size());
+		for (int j = 0; j < maxBlocks; j++) {
+			int expected = 0;
 			if (j < expectedBlocks.size()) {
-			    expected = expectedBlocks[j];
+				expected = expectedBlocks[j];
 			}
 
 			int actual = 0;
 			if (j < actualBlocks.size()) {
-			    actual = actualBlocks[j];
+				actual = actualBlocks[j];
 			}
-            f2 += abs(expected - actual);
-        }
-    }
-    return f2;
+			f2 += abs(expected - actual);
+		}
+	}
+	return f2;
 }
 
 // This is a function to calculate the fitness for a given nonogram solution
@@ -573,7 +575,7 @@ NonogramInstance NonogramSolverGA(const std::vector<NonogramInstance>& initialPo
 		//Increase the mutation rate based on the amount of generations passed, or cap it at the max. rate
 		curMutationRate = MIN_MUTATION_RATE + (MAX_MUTATION_RATE - MIN_MUTATION_RATE) * (gen / (float)GENERATIONS);
 
-		
+
 	}
 	//Get the best individual in the final population to return it
 	NonogramInstance bestInstance = { {} };
@@ -613,18 +615,21 @@ int main()
 	}
 	InitResultsCSV(resultsFile, fileName, nonogramData.height, nonogramData.width);
 #endif
-	
+
 	// Rest of the code goes here
 	std::vector<NonogramInstance> Population = InitializePopulation(POPULATION_SIZE, nonogramData.height, nonogramData.width);
 	GetPopFitness(Population, nonogramData);
 
+	//Time the GA's execution while running
+	auto start = std::chrono::high_resolution_clock::now();
+
 	NonogramInstance solution = NonogramSolverGA(Population, nonogramData, resultsFile);
 
-	std::cout << "\nThe fitness of the final solution was " << solution.fitness << ".\n";
+	auto duration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start);
 
-	// Printing the real nonogram solution (can get rid of this later)
-	printf("\nNonogram Goal State: \n");
-	PrintNonogramState(nonogramData.goalState);
+	std::cout << "\nThe fitness of the final solution was " << solution.fitness << ".\n";
+	std::cout << "This solution took " << duration.count() << " seconds to generate!\n";
+
 	ShowNonogram(nonogramData.goalState, nonogramData.height, nonogramData.width, "Optimal Solution");
 
 #ifdef SAVE_RESULTS_TO_CSV
